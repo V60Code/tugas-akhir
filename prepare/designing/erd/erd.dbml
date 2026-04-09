@@ -1,0 +1,71 @@
+
+// --- REVISED Internal Database Schema ---
+// Copy this into dbdiagram.io
+Table users {
+  id uuid [pk, unique]
+  email varchar(255) [unique, not null]
+  full_name varchar(100)
+  password_hash varchar [not null]
+  
+  // New: Business Logic
+  tier varchar [default: 'FREE', note: "FREE, PRO, ENTERPRISE"]
+  credits_balance int [default: 5, note: "Limit uploads for Free users"]
+  
+  created_at timestamp [default: `now()`]
+}
+// New Table: Agar job terorganisir per project
+Table projects {
+  id uuid [pk]
+  user_id uuid [ref: > users.id]
+  name varchar [note: "e.g. E-Commerce Revamp"]
+  description text
+  created_at timestamp [default: `now()`]
+}
+Table analysis_jobs {
+  id uuid [pk]
+  project_id uuid [ref: > projects.id, note: "Links to Project instead of User directly"]
+  
+  original_filename varchar [not null]
+  app_context varchar [note: "READ_HEAVY / WRITE_HEAVY"]
+  status varchar [note: "QUEUED, PROCESSING, COMPLETED, FAILED"]
+  db_dialect varchar
+  
+  // New: AI Metadata for Cost Tracking
+  ai_model_used varchar [note: "e.g. gpt-4o, gemini-1.5-pro"]
+  tokens_used int [note: "Total tokens consumed"]
+  
+  error_message text
+  created_at timestamp [default: `now()`]
+}
+Table job_artifacts {
+  id uuid [pk]
+  job_id uuid [ref: > analysis_jobs.id]
+  artifact_type varchar [note: "RAW_UPLOAD, SANITIZED_JSON, OPTIMIZED_SQL"]
+  storage_path varchar
+  file_size_bytes bigint
+  created_at timestamp
+}
+Table ai_suggestions {
+  id uuid [pk]
+  job_id uuid [ref: > analysis_jobs.id]
+  table_name varchar
+  issue varchar
+  suggestion text
+  risk_level varchar
+  confidence float
+  action_status varchar [default: 'PENDING']
+  sql_patch text
+}
+// New Table: Untuk fitur Self-Correction & Debugging
+Table sandbox_logs {
+  id uuid [pk]
+  job_id uuid [ref: > analysis_jobs.id]
+  
+  attempt_number int [note: "Is this the 1st try or AI self-correction try?"]
+  status varchar [note: "SUCCESS / SYNTAX_ERROR / RUNTIME_ERROR"]
+  
+  container_log text [note: "Raw output from Docker e.g. 'Error Code 1064'"]
+  execution_time_ms int
+  
+  created_at timestamp [default: `now()`]
+}

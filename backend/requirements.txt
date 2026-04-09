@@ -1,0 +1,41 @@
+# --- FastAPI Core ---
+fastapi
+uvicorn[standard]
+python-multipart
+httpx
+
+# --- Database & ORM ---
+sqlalchemy
+asyncpg
+alembic
+pydantic-settings
+pydantic[email]
+
+# --- Auth & Security ---
+python-jose[cryptography]
+passlib[bcrypt]
+bcrypt==4.0.1
+slowapi
+
+# --- Async Workers ---
+celery[redis]
+redis
+
+# --- Storage ---
+minio
+
+# --- AI & Core Engines (UPDATED) ---
+sqlglot
+langchain
+langchain-core
+langchain-community
+langchain-google-genai
+google-generativeai
+tenacity
+
+# --- Testing ---
+pytest
+pytest-asyncio
+pytest-cov
+httpx
+docker

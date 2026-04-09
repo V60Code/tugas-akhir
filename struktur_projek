@@ -1,0 +1,83 @@
+sql-optimizer-project/
+├── 📄 README.md                  # Dokumentasi cara install & run
+├── 📄 docker-compose.yml         # ORCHESTRATOR: Menyalakan semua service (DB, API, UI)
+├── 📄 .env.example               # Template variabel environment
+├── 📁 .git/
+│
+├── 📂 backend/                   # === BACKEND (FastAPI + Python) ===
+│   ├── 📄 Dockerfile             # Image Docker untuk API & Worker
+│   ├── 📄 requirements.txt       # Dependency (FastAPI, SQLGlot, LangChain, Celery)
+│   ├── 📄 alembic.ini            # Config migrasi database
+│   │
+│   ├── 📂 alembic/               # Versi Migrasi Database
+│   │   └── 📂 versions/          # File script perubahan skema DB
+│   │
+│   ├── 📂 app/
+│   │   ├── 📄 __init__.py
+│   │   ├── 📄 main.py            # Entry point (Start FastAPI)
+│   │   ├── 📄 worker.py          # Entry point Celery (Background Worker)
+│   │   │
+│   │   ├── 📂 api/               # IMPLEMENTASI API CONTRACT
+│   │   │   └── 📂 v1/
+│   │   │       ├── 📄 auth.py    # Login, Register, Me
+│   │   │       ├── 📄 projects.py
+│   │   │       └── 📄 jobs.py    # Upload, Status, Suggestions
+│   │   │
+│   │   ├── 📂 core/              # Konfigurasi
+│   │   │   ├── 📄 config.py      # Load .env
+│   │   │   └── 📄 security.py    # JWT Logic & Password Hashing
+│   │   │
+│   │   ├── 📂 db/                # Koneksi Database
+│   │   │   └── 📄 session.py     # SQLAlchemy Engine
+│   │   │
+│   │   ├── 📂 models/            # IMPLEMENTASI SCHEMA SPEC (ORM)
+│   │   │   ├── 📄 user.py        # Tabel users
+│   │   │   ├── 📄 job.py         # Tabel analysis_jobs, artifacts
+│   │   │   └── 📄 suggestion.py  # Tabel ai_suggestions
+│   │   │
+│   │   ├── 📂 schemas/           # Pydantic Models (Validasi Request/Response)
+│   │   │   ├── 📄 user.py
+│   │   │   └── 📄 job.py
+│   │   │
+│   │   └── 📂 services/          # LOGIKA BISNIS UTAMA
+│   │       ├── 📄 storage.py     # Upload ke MinIO/S3
+│   │       ├── 📄 parser.py      # Logic SQLGlot (SQL -> AST)
+│   │       ├── 📄 llm_engine.py  # Logic LangChain (Prompting AI)
+│   │       └── 📄 sandbox.py     # Logic Docker SDK (Dry-Run Validation)
+│   │
+│   └── 📂 tests/                 # Unit Testing (Pytest)
+│
+├── 📂 frontend/                  # === FRONTEND (Next.js + TS) ===
+│   ├── 📄 Dockerfile
+│   ├── 📄 package.json
+│   ├── 📄 next.config.js
+│   ├── 📄 tailwind.config.ts
+│   │
+│   ├── 📂 public/                # Aset statis (Logo, Images)
+│   │
+│   └── 📂 src/
+│       ├── 📂 app/               # App Router
+│       │   ├── 📄 layout.tsx
+│       │   ├── 📄 page.tsx       # Landing Page
+│       │   ├── 📂 (auth)/        # Halaman Login/Register
+│       │   └── 📂 dashboard/     # Halaman Utama Aplikasi
+│       │
+│       ├── 📂 components/        # UI Components
+│       │   ├── 📂 ui/            # Shadcn/UI (Button, Card, Input)
+│       │   ├── 📂 visualizer/    # React Flow Components (ERD Diagram)
+│       │   └── 📂 upload/        # Drag & Drop Zone
+│       │
+│       ├── 📂 lib/               # Utilities
+│       │   ├── 📄 api.ts         # Axios Client (Koneksi ke Backend)
+│       │   └── 📄 utils.ts       # Helper functions
+│       │
+│       ├── 📂 store/             # State Management
+│       │   └── 📄 useJobStore.ts # Zustand (Menyimpan JobID & Status)
+│       │
+│       └── 📂 types/             # TypeScript Interfaces (Sesuai API Contract)
+│           └── 📄 index.ts
+│
+└── 📂 data/                      # Local Data (Gitignored)
+    ├── 📂 postgres/              # Data Database fisik
+    ├── 📂 redis/                 # Data Redis fisik
+    └── 📂 minio/                 # Data File Upload fisik
