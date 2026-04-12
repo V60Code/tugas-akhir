@@ -14,14 +14,14 @@ flowchart LR
     end
 
     subgraph UC[Implemented Use Cases]
-      U1[Register, login, me]
+      U1[Registrasi akun untuk user belum registrasi]
       U2[List, create, update, delete project]
       U3[Upload SQL to job]
       U4[Process analysis job async]
       U5[Finalize job with self-correction]
       U6[Get download presigned URL]
       U7[Get schema ERD JSON]
-      U8[JWT auth, rate limit, ownership check]
+      U8[Login, me, JWT auth, rate limit, ownership check]
     end
 
     subgraph TEST[Test Evidence]
