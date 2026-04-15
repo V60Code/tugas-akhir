@@ -124,7 +124,11 @@ async def _process_analysis_job_async(job_id: str, session_factory):
 
             # Step 5: AI Analysis
             logger.info(f"Step 5: Analyzing with AI (Context: {job.app_context.value})...")
-            analysis = llm_engine.analyze_schema(schema, job.app_context.value)
+            analysis = llm_engine.analyze_schema(
+                schema,
+                job.app_context.value,
+                db_dialect=job.db_dialect or "mysql",
+            )
             suggestions = analysis.suggestions
             logger.info(f"AI returned {len(suggestions)} suggestions.")
 
@@ -216,7 +220,7 @@ async def _finalize_job_async(job_id: str, session_factory):
             #      the original DDL) up to MAX_SELF_CORRECTION_RETRIES times.
             #   4. If still failing after all retries → FAILED with a full error log.
             # ─────────────────────────────────────────────────────────────────
-            dialect = job.db_dialect or "postgresql"
+            dialect = job.db_dialect or "mysql"
             current_sql = optimized_sql
             validation_result = None
             self_correction_attempted = False
@@ -261,6 +265,7 @@ async def _finalize_job_async(job_id: str, session_factory):
                         error_log=error_log,
                         table_name=", ".join(s.table_name for s in suggestions),
                         attempt=attempt + 1,
+                        db_dialect=dialect,
                     )
 
                     if not corrected_patch:

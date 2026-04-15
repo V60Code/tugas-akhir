@@ -87,12 +87,15 @@ class LLMEngine:
 
         self.prompt = PromptTemplate(
             template="""
-You are a senior Database Architect and PostgreSQL performance expert.
+You are a senior MySQL Database Architect and performance tuning expert.
 Your task is to deeply analyze the database schema below and find REAL, ACTIONABLE optimization opportunities.
+
+=== TARGET DIALECT ===
+{db_dialect}
 
 === WORKLOAD CONTEXT ===
 {app_context}
-- READ_HEAVY: Prioritize indexes for SELECT performance (partial indexes, composite indexes, covering indexes, GIN for JSONB/array)
+- READ_HEAVY: Prioritize indexes for SELECT performance (composite indexes, covering indexes, filtered access patterns)
 - WRITE_HEAVY: Identify indexes that hurt INSERT/UPDATE performance, suggest index consolidation
 
 === DATABASE SCHEMA ===
@@ -103,26 +106,27 @@ You MUST find between 3 and 8 real issues. Even well-designed schemas have optim
 
 Look for ALL of the following (not just obvious ones):
 1. **Missing composite indexes** — columns frequently used together in WHERE/JOIN but only indexed individually
-2. **Missing partial indexes** — columns with low-cardinality values (status, is_active, deleted_at IS NULL) that benefit from partial indexes
-3. **UUID primary key tradeoff** — if schema uses UUID PKs, note the random write amplification vs. BIGSERIAL/ULID
-4. **Missing covering indexes** — indexes that can satisfy queries without heap access (INCLUDE clause in PG 11+)
-5. **JSONB/Array column indexing** — JSONB columns without GIN indexes
-6. **Soft-delete performance** — tables with deleted_at that lack partial indexes excluding soft-deleted rows
+2. **Low-cardinality predicate optimization** — use index design that helps common filters (status, is_active, deleted_at)
+3. **UUID primary key tradeoff** — if schema uses UUID PKs, note random write amplification and suggest MySQL-friendly alternatives if needed
+4. **Covering indexes in MySQL** — indexes that reduce extra lookups for common query patterns
+5. **JSON column optimization** — suggest generated columns + indexes when JSON fields are filtered frequently
+6. **Soft-delete performance** — tables with deleted_at that lack indexes aligned with active-row query patterns
 7. **Over-indexing** — tables with too many single-column indexes that slow down writes
 8. **Missing CHECK constraints or NOT NULL** — columns that should be constrained but aren't
 9. **Normalization opportunities** — repeated patterns that could be extracted to reference tables
-10. **Large TEXT columns** — TEXT/VARCHAR(MAX) on frequently-queried columns that should be VARCHAR(N)
+10. **Large TEXT columns** — TEXT/LONGTEXT on frequently-filtered columns that should be VARCHAR(N) or separate lookup design
 
 CRITICAL RULES:
 - You MUST generate at least 3 suggestions. If the schema looks clean, find micro-optimizations.
 - Every suggestion MUST include a concrete, runnable SQL patch (not a comment, actual SQL).
 - Do NOT return empty sql_patch strings.
 - Do NOT make up tables or columns that don't exist in the schema.
-- Focus on PostgreSQL-specific features (partial indexes, GIN, INCLUDE, BRIN).
+- Use MySQL 8-compatible SQL syntax.
+- Do NOT use PostgreSQL-only features (GIN, BRIN, INCLUDE, partial index WHERE clause, PostgreSQL-specific operators).
 
 {format_instructions}
 """,
-            input_variables=["app_context", "schema_json"],
+            input_variables=["app_context", "schema_json", "db_dialect"],
             partial_variables={"format_instructions": self.parser.get_format_instructions()},
         )
 
@@ -188,7 +192,7 @@ CRITICAL RULES:
         """Single LLM network hop — isolated so tenacity retries only this call."""
         return self.llm.invoke(prompt_str)
 
-    def analyze_schema(self, schema: dict, app_context: str) -> AnalysisUsage:
+    def analyze_schema(self, schema: dict, app_context: str, db_dialect: str = "mysql") -> AnalysisUsage:
         """
         Send schema to Gemini for analysis and return structured suggestions
         together with token usage and the model name used.
@@ -203,6 +207,7 @@ CRITICAL RULES:
         _input = self.prompt.format_prompt(
             app_context=app_context,
             schema_json=schema_text,
+            db_dialect=db_dialect or "mysql",
         )
 
         output = self._invoke_llm(_input.to_string())
@@ -236,6 +241,7 @@ CRITICAL RULES:
         error_log: str,
         table_name: str,
         attempt: int,
+        db_dialect: str = "mysql",
     ) -> str:
         """
         Ask the LLM to fix a SQL patch that failed sandbox validation.
@@ -259,7 +265,7 @@ CRITICAL RULES:
 
         correction_prompt = PromptTemplate(
             template="""
-You are a PostgreSQL expert performing a SQL self-correction task.
+You are a MySQL 8 SQL expert performing a SQL self-correction task.
 
 A SQL patch generated for optimization failed database validation.
 Your job is to output a corrected version of the SQL that will pass validation.
@@ -273,16 +279,20 @@ Table: {table_name}
 === SANDBOX ERROR LOG ===
 {error_log}
 
+=== TARGET DIALECT ===
+{db_dialect}
+
 === INSTRUCTIONS ===
 - Analyze the error log carefully.
 - Fix ONLY what is causing the failure — do not rewrite the entire patch.
-- Return valid, runnable PostgreSQL DDL/DML.
+- Return valid, runnable MySQL 8 DDL/DML.
 - If the patch cannot be fixed (e.g., references a table that doesn't exist), return an empty corrected_sql.
 - Do NOT wrap the SQL in markdown fences.
+- Do NOT use PostgreSQL-only syntax/features.
 
 {format_instructions}
 """,
-            input_variables=["table_name", "original_sql", "error_log"],
+            input_variables=["table_name", "original_sql", "error_log", "db_dialect"],
             partial_variables={"format_instructions": correction_parser.get_format_instructions()},
         )
 
@@ -290,6 +300,7 @@ Table: {table_name}
             table_name=table_name,
             original_sql=original_sql_patch,
             error_log=error_log[:3000],    # Truncate huge logs to avoid context overflow
+            db_dialect=db_dialect or "mysql",
         )
 
         try:

@@ -7,6 +7,13 @@ Platform web untuk menganalisis file DDL SQL, menghasilkan rekomendasi optimasi 
 - Memberikan rekomendasi SQL patch yang actionable.
 - Menurunkan risiko eksekusi patch dengan validasi sandbox sebelum finalisasi.
 
+## Fokus Dialek SQL (MySQL)
+- Fokus optimasi pada proyek ini adalah MySQL DDL (MySQL 8).
+- Prompt AI diposisikan sebagai MySQL expert dan menghindari fitur khusus PostgreSQL (misalnya GIN, BRIN, INCLUDE).
+- Validasi SQL di sandbox berjalan secara dialect-aware:
+	- MySQL: readiness check menggunakan mysqladmin, eksekusi SQL menggunakan mysql CLI.
+	- PostgreSQL: tetap didukung untuk kompatibilitas, tetapi bukan fokus utama optimasi proyek.
+
 ## Fitur Utama
 - Autentikasi user berbasis JWT.
 - Manajemen project (create, read, update, delete).

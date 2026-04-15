@@ -12,10 +12,22 @@ logger = logging.getLogger(__name__)
 # Maximum time (seconds) to wait for sandbox container before aborting.
 # Prevents hanging workers. Rule from 02-dos-and-donts.md: 30s max.
 SANDBOX_TIMEOUT_SECONDS = 30
-# How long to wait between pg_isready checks (seconds)
+# How long to wait between DB readiness checks (seconds)
 DB_READY_POLL_INTERVAL = 2
-# Max retries for pg_isready (total wait = retries × interval)
+# Max retries for readiness checks (total wait = retries × interval)
 DB_READY_MAX_RETRIES = 10
+
+
+def _is_mysql_dialect(db_dialect: str | None) -> bool:
+    return "mysql" in (db_dialect or "").lower()
+
+
+def _unpack_exec_result(exec_result):
+    """Normalize docker exec_run output across tuple vs object variants."""
+    if isinstance(exec_result, tuple):
+        exit_code, output = exec_result
+        return exit_code, output or b""
+    return exec_result.exit_code, exec_result.output or b""
 
 
 class SandboxService:
@@ -51,10 +63,27 @@ class SandboxService:
                 "logs": "Docker client not available. Check if Docker socket is mounted.",
             }
 
-        # Select container image based on dialect
-        image = "postgres:15-alpine"
-        if "mysql" in db_dialect.lower():
-            image = "mysql:8"
+        # Select runtime profile based on dialect
+        use_mysql = _is_mysql_dialect(db_dialect)
+        image = "mysql:8" if use_mysql else "postgres:15-alpine"
+        env = (
+            {
+                "MYSQL_ROOT_PASSWORD": "root",
+                "MYSQL_DATABASE": "sandbox",
+            }
+            if use_mysql
+            else {"POSTGRES_PASSWORD": "root"}
+        )
+        ready_cmd = (
+            "mysqladmin ping -h 127.0.0.1 -uroot -proot --silent"
+            if use_mysql
+            else "pg_isready -U postgres"
+        )
+        sql_cmd = (
+            "sh -lc 'mysql -uroot -proot sandbox < /tmp/validate.sql'"
+            if use_mysql
+            else "psql -U postgres -d postgres -f /tmp/validate.sql"
+        )
 
         container_name = f"sandbox_{uuid.uuid4().hex[:8]}"
         container = None
@@ -66,7 +95,7 @@ class SandboxService:
             container = self.client.containers.run(
                 image,
                 name=container_name,
-                environment={"POSTGRES_PASSWORD": "root"},
+                environment=env,
                 detach=True,
                 network_disabled=True,  # No network needed for pure SQL validation
                 mem_limit="256m",       # Cap memory usage
@@ -84,7 +113,8 @@ class SandboxService:
                     return {"success": False, "logs": f"Sandbox timeout: DB not ready after {SANDBOX_TIMEOUT_SECONDS}s."}
 
                 time.sleep(DB_READY_POLL_INTERVAL)
-                exit_code, _ = container.exec_run("pg_isready -U postgres")
+                ready_result = container.exec_run(ready_cmd)
+                exit_code, _ = _unpack_exec_result(ready_result)
                 if exit_code == 0:
                     is_ready = True
                     break
@@ -108,14 +138,10 @@ class SandboxService:
             if elapsed >= SANDBOX_TIMEOUT_SECONDS:
                 return {"success": False, "logs": f"Sandbox timeout before SQL execution: {elapsed:.1f}s elapsed."}
 
-            # ── 5. Execute SQL via psql ─────────────────────────────────────
-            exec_result = container.exec_run(
-                "psql -U postgres -d postgres -f /tmp/validate.sql",
-                stdout=True,
-                stderr=True,
-            )
-            exit_code = exec_result.exit_code
-            output = exec_result.output.decode("utf-8", errors="replace")
+            # ── 5. Execute SQL via dialect-specific client ─────────────────
+            exec_result = container.exec_run(sql_cmd, stdout=True, stderr=True)
+            exit_code, raw_output = _unpack_exec_result(exec_result)
+            output = raw_output.decode("utf-8", errors="replace")
 
             logger.info(f"Sandbox exec exit_code={exit_code} for container '{container_name}'")
 

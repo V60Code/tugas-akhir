@@ -235,6 +235,55 @@ class TestSandboxService:
 
         assert mock_client.containers.run.call_args[0][0] == "mysql:8"
 
+    def test_mysql_dialect_uses_mysql_commands_and_env(self):
+        """mysql dialect must use mysqladmin readiness + mysql CLI execution."""
+        service = SandboxService()
+        mock_client = MagicMock()
+        mock_container = MagicMock()
+        mock_client.containers.run.return_value = mock_container
+
+        # 1) mysqladmin readiness (tuple form)
+        # 2) mysql execution (object form)
+        mock_container.exec_run.side_effect = [
+            (0, b"mysqld is alive"),
+            MagicMock(exit_code=0, output=b"Query OK"),
+        ]
+
+        with patch.object(SandboxService, "client", new_callable=PropertyMock) as mock_prop, \
+             patch("app.services.sandbox.time.sleep"), \
+             patch("app.services.sandbox.time.monotonic", return_value=0.0):
+            mock_prop.return_value = mock_client
+            result = service.run_sql_validation("CREATE TABLE t (id INT);", db_dialect="mysql")
+
+        assert result["success"] is True
+
+        run_kwargs = mock_client.containers.run.call_args.kwargs
+        assert run_kwargs["environment"]["MYSQL_ROOT_PASSWORD"] == "root"
+        assert run_kwargs["environment"]["MYSQL_DATABASE"] == "sandbox"
+        assert "POSTGRES_PASSWORD" not in run_kwargs["environment"]
+
+        first_cmd = mock_container.exec_run.call_args_list[0].args[0]
+        second_cmd = mock_container.exec_run.call_args_list[1].args[0]
+        assert "mysqladmin ping" in first_cmd
+        assert "mysql -uroot -proot sandbox" in second_cmd
+
+    def test_mysql_readiness_retries_exhausted_returns_not_ready(self):
+        """All mysqladmin readiness retries fail -> not ready response."""
+        service = SandboxService()
+        mock_client = MagicMock()
+        mock_container = MagicMock()
+        mock_client.containers.run.return_value = mock_container
+        mock_container.exec_run.return_value = (1, b"mysql not ready")
+
+        with patch.object(SandboxService, "client", new_callable=PropertyMock) as mock_prop, \
+             patch("app.services.sandbox.time.sleep"), \
+             patch("app.services.sandbox.time.monotonic", return_value=0.0):
+            mock_prop.return_value = mock_client
+            result = service.run_sql_validation("SELECT 1;", db_dialect="mysql")
+
+        assert result["success"] is False
+        assert "failed to become ready" in result["logs"]
+
     def test_pg_isready_retries_exhausted_returns_not_ready(self):
         """All pg_isready retries fail → 'Database container failed to become ready'."""
         service = SandboxService()
