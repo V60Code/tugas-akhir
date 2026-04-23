@@ -77,7 +77,7 @@ class SelfCorrectionResult(BaseModel):
 class LLMEngine:
     def __init__(self):
         self.llm = ChatGoogleGenerativeAI(
-            model="gemini-2.5-flash-lite",
+            model=settings.GEMINI_MODEL,
             temperature=0.1,    # slight creativity to find non-obvious issues
             convert_system_message_to_human=True,
             google_api_key=settings.GOOGLE_API_KEY,

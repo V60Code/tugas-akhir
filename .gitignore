@@ -8,3 +8,8 @@ dist/
 build/
 data/
 .DS_Store
+.env
+.env.*
+!.env.example
+*.log
+tmp_worker_logs.txt
