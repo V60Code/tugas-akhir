@@ -9,7 +9,7 @@ import type { AppContext } from '@/types/project';
 import {
     ArrowLeft, Upload, Loader2, Database, CheckCircle2,
     AlertCircle, Download, Zap, ChevronRight, Clock,
-    FileText, LogOut, GitBranch, AlertTriangle,
+    FileText, LogOut, GitBranch, AlertTriangle, BarChart3,
 } from 'lucide-react';
 import { SqlDiffViewer } from '@/components/ui/SqlDiffViewer';
 
@@ -365,6 +365,44 @@ export default function ProjectDetailPage({ params }: { params: { projectId: str
                                     ))}
                                 </ul>
                             </details>
+                        )}
+
+                        {/* Predictive performance estimate */}
+                        {results.performance_estimate && (
+                            <div className="rounded-2xl border border-emerald-500/30 bg-emerald-500/5 p-5">
+                                <div className="mb-3 flex items-center gap-2">
+                                    <BarChart3 className="h-4 w-4 text-emerald-300" />
+                                    <h3 className="text-sm font-semibold text-emerald-200">Estimated Performance Impact</h3>
+                                    <span className="rounded-full border border-emerald-500/30 px-2 py-0.5 text-[10px] uppercase tracking-wide text-emerald-300">
+                                        Predictive
+                                    </span>
+                                </div>
+                                <p className="text-xs text-emerald-100/90">{results.performance_estimate.summary}</p>
+                                <div className="mt-3 grid gap-3 sm:grid-cols-3">
+                                    <div className="rounded-lg border border-emerald-500/20 bg-slate-900/40 p-3">
+                                        <p className="text-[11px] uppercase tracking-wide text-slate-400">Read Latency</p>
+                                        <p className="mt-1 text-sm font-medium text-white">
+                                            {results.performance_estimate.read_latency_improvement_pct.min}% to {results.performance_estimate.read_latency_improvement_pct.max}%
+                                        </p>
+                                    </div>
+                                    <div className="rounded-lg border border-emerald-500/20 bg-slate-900/40 p-3">
+                                        <p className="text-[11px] uppercase tracking-wide text-slate-400">Write Throughput</p>
+                                        <p className="mt-1 text-sm font-medium text-white">
+                                            {results.performance_estimate.write_throughput_change_pct.min}% to {results.performance_estimate.write_throughput_change_pct.max}%
+                                        </p>
+                                    </div>
+                                    <div className="rounded-lg border border-emerald-500/20 bg-slate-900/40 p-3">
+                                        <p className="text-[11px] uppercase tracking-wide text-slate-400">Maintenance Cost</p>
+                                        <p className="mt-1 text-sm font-medium text-white">
+                                            {results.performance_estimate.maintenance_cost_change_pct.min}% to {results.performance_estimate.maintenance_cost_change_pct.max}%
+                                        </p>
+                                    </div>
+                                </div>
+                                <p className="mt-3 text-xs text-slate-300">
+                                    Confidence: {Math.round(results.performance_estimate.confidence * 100)}% ·
+                                    Query patterns improved: {results.performance_estimate.estimated_query_patterns_improved}
+                                </p>
+                            </div>
                         )}
 
                         <div className="grid gap-6 lg:grid-cols-2">

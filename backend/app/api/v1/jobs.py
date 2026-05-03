@@ -14,6 +14,7 @@ from app.models.job import AnalysisJob, JobArtifact, Project, JobStatus, AppCont
 from app.models.suggestion import AISuggestion, ActionStatus
 from app.services.storage import minio_service
 from app.services.parser import sanitize_sql_stream, parse_sql_to_erd_schema, parse_sql_to_schema
+from app.services.performance_estimator import estimate_performance_impact
 from app.schemas.job import (
     AISuggestionResponse, JobSummaryResponse, ERDSchemaResponse,
     ERDTable, ERDColumn, ERDForeignKey, FinalizeRequest, JobSuggestionsResponse,
@@ -208,6 +209,7 @@ async def get_job_suggestions(
     # 2. Detect missing FK references via quick ERD parse
     missing_fk_warnings: list[str] = []
     has_missing_references: bool = False
+    erd_data: dict = {"tables": []}
     if original_sql:
         try:
             erd_data = parse_sql_to_erd_schema(original_sql)
@@ -221,10 +223,19 @@ async def get_job_suggestions(
     )
     suggestions = suggestions_result.scalars().all()
 
+    # Predictive performance report derived from AI findings.
+    performance_estimate = estimate_performance_impact(
+        suggestions=suggestions,
+        app_context=job.app_context.value,
+        db_dialect=job.db_dialect or "mysql",
+        table_count=len(erd_data.get("tables", [])) if original_sql else 1,
+    )
+
     # Serialize ORM objects to Pydantic response models
     return JobSuggestionsResponse(
         original_sql=original_sql,
         suggestions=[AISuggestionResponse.model_validate(s) for s in suggestions],
+        performance_estimate=performance_estimate,
         missing_fk_warnings=missing_fk_warnings,
         has_missing_references=has_missing_references,
     )

@@ -35,8 +35,25 @@ class JobSuggestionsResponse(BaseModel):
     """Response containing original uploaded SQL, AI suggestions, and any missing FK warnings."""
     original_sql: str
     suggestions: List[AISuggestionResponse]
+    performance_estimate: Optional["PerformanceEstimateResponse"] = None
     missing_fk_warnings: List[str] = []
     has_missing_references: bool = False
+
+
+class MetricRange(BaseModel):
+    min: float
+    max: float
+
+
+class PerformanceEstimateResponse(BaseModel):
+    method: str
+    summary: str
+    read_latency_improvement_pct: MetricRange
+    write_throughput_change_pct: MetricRange
+    maintenance_cost_change_pct: MetricRange
+    estimated_query_patterns_improved: int
+    confidence: float
+    assumptions: List[str]
 
 
 class FinalizeRequest(BaseModel):
@@ -111,3 +128,7 @@ class FinalizeResponse(BaseModel):
 class DownloadResponse(BaseModel):
     """Presigned download URL for the optimized SQL artifact."""
     download_url: str
+
+
+# Resolve forward references used by JobSuggestionsResponse.
+JobSuggestionsResponse.model_rebuild()

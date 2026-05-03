@@ -34,10 +34,27 @@ export interface AISuggestion {
     action_status: 'PENDING' | 'ACCEPTED' | 'REJECTED';
 }
 
+export interface MetricRange {
+    min: number;
+    max: number;
+}
+
+export interface PerformanceEstimate {
+    method: string;
+    summary: string;
+    read_latency_improvement_pct: MetricRange;
+    write_throughput_change_pct: MetricRange;
+    maintenance_cost_change_pct: MetricRange;
+    estimated_query_patterns_improved: number;
+    confidence: number;
+    assumptions: string[];
+}
+
 /** Response payload for GET /jobs/:id/suggestions */
 export interface JobSuggestionsResponse {
     original_sql: string;
     suggestions: AISuggestion[];
+    performance_estimate?: PerformanceEstimate | null;
     missing_fk_warnings: string[];
     has_missing_references: boolean;
 }

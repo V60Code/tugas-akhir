@@ -9,12 +9,14 @@ import {
     extractErrorMessage,
 } from '@/lib/api';
 import type { AppContext } from '@/types/project';
+import type { PerformanceEstimate } from '@/types/job';
 
 export type JobStatus = 'IDLE' | 'UPLOADING' | 'PROCESSING' | 'COMPLETED' | 'FINALIZED' | 'FINALIZING' | 'FAILED';
 
 export interface JobResults {
     original_sql: string;
     suggestions: AISuggestion[];
+    performance_estimate: PerformanceEstimate | null;
     /** Concatenated SQL patches shown in the preview panel */
     optimized_sql_preview: string;
     /** Missing FK reference warnings from partial SQL uploads */
@@ -104,12 +106,19 @@ export const useJobStore = create<JobState>((set, get) => ({
 
             if (jobStatus.status === 'COMPLETED') {
                 set({ progressMessage: 'Analysis complete. Fetching suggestions…' });
-                const { original_sql, suggestions, missing_fk_warnings, has_missing_references } = await getJobSuggestions(jobId);
+                const {
+                    original_sql,
+                    suggestions,
+                    performance_estimate,
+                    missing_fk_warnings,
+                    has_missing_references,
+                } = await getJobSuggestions(jobId);
                 set({
                     status: 'COMPLETED',
                     results: {
                         original_sql,
                         suggestions: suggestions,
+                        performance_estimate: performance_estimate ?? null,
                         optimized_sql_preview: suggestions
                             .map((s) => `-- [${s.risk_level}] ${s.issue}\n${s.sql_patch}`)
                             .join('\n\n'),
@@ -197,7 +206,13 @@ export const useJobStore = create<JobState>((set, get) => ({
         });
 
         try {
-            const { original_sql, suggestions, missing_fk_warnings, has_missing_references } =
+            const {
+                original_sql,
+                suggestions,
+                performance_estimate,
+                missing_fk_warnings,
+                has_missing_references,
+            } =
                 await getJobSuggestions(jobId);
 
             const resolvedStatus: JobStatus =
@@ -208,6 +223,7 @@ export const useJobStore = create<JobState>((set, get) => ({
                 results: {
                     original_sql,
                     suggestions,
+                    performance_estimate: performance_estimate ?? null,
                     optimized_sql_preview: suggestions
                         .map((s) => `-- [${s.risk_level}] ${s.issue}\n${s.sql_patch}`)
                         .join('\n\n'),
